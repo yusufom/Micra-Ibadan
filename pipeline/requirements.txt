@@ -1,0 +1,6 @@
+# Map pipeline dependencies (pinned when the pipeline is implemented)
+# pyproj
+# osmium
+# shapely
+# rasterio
+# numpy
