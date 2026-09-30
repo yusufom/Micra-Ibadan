@@ -6,6 +6,7 @@ import { lazy, Suspense, useLayoutEffect, useMemo, useState, useSyncExternalStor
 import { Object3D } from "three";
 import { MICRA_TUNING } from "@/game/config/micraTuning";
 import { GameLoop } from "@/game/core/GameLoop";
+import { TrafficLayer } from "@/game/npc/traffic/TrafficLayer";
 import { useWorldStore } from "@/game/store/worldStore";
 import { Attribution } from "@/game/ui/Attribution";
 import { Hud } from "@/game/ui/Hud";
@@ -76,6 +77,7 @@ export default function GameCanvas() {
             {status === "missing" && <Ground />}
             {spawn && <Micra spawn={spawn} roads={roads} focus={focus} camera={!(freeFly && debugTools)} debugKeys={debugTools} />}
             {roads && <PotholeLayer field={roads.potholes} focus={streamFocus ?? undefined} />}
+            {roads && manifest && status === "ready" && <TrafficLayer roads={roads} manifest={manifest} />}
           </Physics>
           <GameLoop />
         </Suspense>

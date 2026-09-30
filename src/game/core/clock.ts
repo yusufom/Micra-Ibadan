@@ -10,6 +10,9 @@ export const SECONDS_PER_GAME_DAY = 24 * 60;
 /** In-game hour a session starts at by default: mid-morning, sun well up. */
 export const DAY_START_HOUR = 10;
 
+/** Day of the week the session starts on: 0 Sunday … 6 Saturday. Monday, a school and work day. */
+export const START_WEEKDAY = 1;
+
 /** Clamp frame delta so a backgrounded tab doesn't explode the simulation. */
 const MAX_DELTA = 0.1;
 
@@ -29,6 +32,16 @@ export const gameClock = {
     this.delta = dt;
     this.elapsed += dt;
     return dt;
+  },
+
+  /** Whole in-game days since the session started (0 on the first day). */
+  get day(): number {
+    return Math.floor((this.startHour + (this.elapsed / SECONDS_PER_GAME_DAY) * 24) / 24);
+  },
+
+  /** 0 Sunday … 6 Saturday. */
+  get weekday(): number {
+    return (START_WEEKDAY + this.day) % 7;
   },
 
   /** In-game hour of day, 0–24. */

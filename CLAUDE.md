@@ -25,9 +25,10 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 | `src/app` | Routes only: `/` menu, `/play` game, `/garage`, `/leaderboard` |
 | `src/game/core` | Game loop, clock, event bus (`events.ts`), system registry, normalised input (`input.ts`) |
 | `src/game/world` | Canvas root, map chunks, roads, buildings, terrain, projection constants |
-| `src/game/config` | Livery (`livery.ts`) and every driving-feel constant (`micraTuning.ts`) |
+| `src/game/config` | Livery (`livery.ts`), every driving-feel constant (`micraTuning.ts`) and every traffic constant (`trafficTuning.ts`) |
 | `src/game/vehicles` | Player and traffic vehicles. `Micra.tsx` wires `micra/micraSim.ts` (drivetrain, load, heat, damage on Rapier's raycast vehicle), `micra/MicraModel.tsx` (procedural model, swap for a .glb keeping `MicraRig`) and `micra/MicraCamera.tsx` |
-| `src/game/npc` | Passengers, touts, officers, pedestrians |
+| `src/game/npc` | AI traffic (`traffic/`), people waving for taxis (`hailers/`); later passengers, touts, officers, pedestrians |
+| `src/game/audio` | Sound (`hornAudio.ts`: synthesised horns from HORN events) |
 | `src/game/systems` | Gameplay systems: `economy/`, `enforcement/`, `passengers/` |
 | `src/game/ui` | HUD components (DOM overlay) |
 | `src/game/store` | zustand stores |
@@ -54,8 +55,9 @@ OSM does not tag a `junction=roundabout` at Dugbe. The nearest one it tags is th
 
 ## Driving
 
-- All devices go through `src/game/core/input.ts` (`input` + `wasPressed()`); nothing else listens to keys or gamepads. Keyboard: WASD/arrows, Space handbrake, H horn, E interact (radiator water, spare tyre), C camera, Q/Z shift down/up (manual), M auto/manual, P park. Touch overlay in `src/game/ui/TouchControls.tsx`.
+- All devices go through `src/game/core/input.ts` (`input` + `wasPressed()`); nothing else listens to keys or gamepads. Keyboard: WASD/arrows, Space handbrake, H horn, E interact (radiator water, spare tyre), C camera, Q/Z shift down/up (manual), M auto/manual, P park, R get pushed back onto the nearest lane when stuck. Touch overlay in `src/game/ui/TouchControls.tsx`.
 - Auto gearbox: from a standstill a fresh press of S selects reverse, a fresh press of W selects drive. The car starts in park (P: handbrake up, drive disengaged); press P again to drive. Park only engages below ~3.6 km/h.
+- Drain walls are 0.3 m of concrete; in physics only, `ChunkManager.roadTriangles` stacks a copy of every vertical drain face 0.35 m higher so the car's body meets a real barrier instead of riding up onto the drain.
 - Tune the feel only in `src/game/config/micraTuning.ts`; its header lists what the current numbers measure.
 
 ## World rendering
@@ -65,7 +67,17 @@ OSM does not tag a `junction=roundabout` at Dugbe. The nearest one it tags is th
 - Beyond the streamed chunks, `terrain/FarField.ts` draws the pipeline's `far.bin` + `far.jpg` as one mesh.
 - Quality tiers are in `src/game/world/quality.ts` (low = phone at 30 fps, high = laptop at 60 fps).
 - Road lookups (`roads/roadIndex.ts`, grade under the car) and potholes (`roads/potholes.ts`, seeded per road edge until the pipeline emits them) are built from the manifest's road graph by `roads/roadData.ts`.
-- Debug (dev, or `?debug` in any build): **F** free-fly camera, **G** road grade overlay, **K** harmattan haze, **[ ]** passengers, **L** luggage, **B** burst a tyre, **N** condition −20, **O** overheat. URL params: `?quality=low|high`, `?hour=17.5`, `?haze=0`, `?cam=x,y,z[,yaw,pitch]` (start in free fly).
+- `RoadGraph.ts` is the driving view of the road graph: directed edges (`edgeId * 2` u → v, `+ 1` v → u), lanes (lane 0 = kerb, offsets metres right of the centreline, right-hand traffic), A* that respects one-way streets, lane polylines, height along edges, `edgesNear` and `nearestLane`. Get it from `getRoadData(manifest).graph`.
+- Debug (dev, or `?debug` in any build): **F** free-fly camera, **G** road grade overlay, **K** harmattan haze, **[ ]** passengers, **L** luggage, **B** burst a tyre, **N** condition −20, **O** overheat. The overlay also shows traffic counts and update time. URL params: `?quality=low|high`, `?hour=17.5`, `?haze=0`, `?cam=x,y,z[,yaw,pitch]` (start in free fly), `?traffic=N` (vehicle cap, 0 = off), `?marketday=1` (every market on its market day). In dev, `window.__traffic` is the live sim.
+
+## Traffic
+
+- `src/game/npc/traffic/`: `TrafficSim` (framework-free driving and spawning), `TrafficLayer` (the R3F component inside `<Physics>`), `TrafficRenderer` (instanced procedural models from `trafficModels.ts`), `TrafficPhysics` (kinematic bodies near the player) and `junctions.ts`, `density.ts`, `lanePath.ts`, `vehicleTypes.ts`. Tune only in `config/trafficTuning.ts` and `vehicleTypes.ts`.
+- Vehicles are simulated only within 400 m of the player (60 at peak on high, 30 on low), recycled out of view, and only those within 70 m get kinematic Rapier bodies (collision group 3, which wheel rays and the camera skip). Contacts with the player are polled after each physics step, because react-three-rapier only reports collisions between colliders it created. They become `COLLISION` events, and `Micra.tsx` applies the damage.
+- Drivers follow lane paths with the Intelligent Driver Model. "What's ahead" sweeps the vehicle's own path against every nearby footprint, the player's included, so queues, junction conflicts and cut-ins come from one test. Nothing is scripted: jams come from density, junctions and taxis stopping anywhere.
+- Junctions: OSM roundabouts and Dugbe (yield to traffic in the box or on the ring), some signalised crossroads of busy roads (a share dead, often run on red), the rest negotiated by road rank, gaps, patience and the horn. `Junctions.oyrtmaPoints()` lists the OYRTMA posts for enforcement.
+- Okada and keke run 05:30–22:30 (Executive Order 002 of 2026). Outside those hours the few left are `fleeing`: fast, lights off, avoiding main roads.
+- The player's position and heading reach traffic through `vehicles/playerVehicle.ts` (module state written by `Micra.tsx`).
 
 ## Commands
 

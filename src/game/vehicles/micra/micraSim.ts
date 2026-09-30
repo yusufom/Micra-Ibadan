@@ -20,9 +20,9 @@ type VehicleController = ReturnType<RapierWorld["createVehicleController"]>;
  * middle of the car. Wheels: 0 front-left, 1 front-right, 2 rear-left, 3 rear-right.
  */
 
-/** Collision groups: car colliders are in group 2; wheel rays and the camera skip it. */
+/** Collision groups: car colliders are in group 2, AI traffic in group 3; wheel rays and the camera skip both. */
 export const CAR_COLLISION_GROUPS = (0x0002 << 16) | 0xffff;
-export const WHEEL_RAY_GROUPS = (0x0001 << 16) | (0xffff & ~0x0002);
+export const WHEEL_RAY_GROUPS = (0x0001 << 16) | (0xffff & ~0x0002 & ~0x0004);
 
 export type MicraControls = {
   throttle: number;
@@ -139,6 +139,8 @@ export class MicraSim {
   private readonly lastPothole = [-1, -1, -1, -1];
   private readonly lastVel = { x: 0, y: 0, z: 0 };
   private hasLastVel = false;
+  /** Steps left in which checkCrash skips damage, because a vehicle impact was already charged. */
+  private impactGrace = 0;
   private readonly filterFlags: number;
 
   constructor(world: RapierWorld, rapier: RapierApi, body: RapierRigidBody, env: MicraEnv = {}) {
@@ -640,9 +642,21 @@ export class MicraSim {
     this.events.onMessage?.("Spare tyre on");
   }
 
+  /**
+   * Hit another vehicle: the traffic system worked out the damage from the
+   * closing speed and the other vehicle's mass. The speed change it causes is
+   * not charged again as a crash.
+   */
+  applyImpact(damage: number, jolt: number): void {
+    this.condition = Math.max(0, this.condition - damage);
+    this.jolt = Math.max(this.jolt, Math.min(1, jolt));
+    this.impactGrace = 6;
+  }
+
   /** A sudden horizontal speed change between steps is a crash. */
   private checkCrash(v: { x: number; y: number; z: number }): void {
-    if (this.hasLastVel) {
+    if (this.impactGrace > 0) this.impactGrace--;
+    else if (this.hasLastVel) {
       const dv = Math.hypot(v.x - this.lastVel.x, v.z - this.lastVel.z);
       if (dv > T.condition.crashThreshold) {
         const damage = (dv - T.condition.crashThreshold) * T.condition.crashDamage;

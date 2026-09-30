@@ -40,6 +40,8 @@ export type VehicleState = {
   gearbox: GearboxMode;
   camera: CameraMode;
   task: VehicleTask;
+  /** Wedged somewhere (on a drain, in a ditch): R gets the passengers to push. */
+  stuck: boolean;
   /** Short status line for the HUD, with the time it was set (performance.now ms). */
   message: { text: string; at: number } | null;
 
@@ -65,6 +67,7 @@ export const useVehicleStore = create<VehicleState>()(
     gearbox: "auto",
     camera: "chase",
     task: null,
+    stuck: false,
     message: null,
 
     setMessage: (text) => set({ message: { text, at: performance.now() } }),

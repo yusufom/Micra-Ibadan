@@ -391,32 +391,45 @@ function disposeSource(src: ChunkSource): void {
 /** Parts that get a trimesh collider: the carriageway, plus the raised drains so cars can't drive through their walls. */
 const COLLIDER_MATERIALS = [...ROAD_MATERIALS, "drain"];
 
+/**
+ * Drain walls are 0.3 m of concrete, and the Micra's body collider starts
+ * 0.2 m up, so on its own a wall only offers a 10 cm edge that the body rides
+ * up and over, leaving the car high-centred on the drain. In physics only,
+ * every near-vertical drain face gets a copy stacked this far above it: a
+ * solid barrier the body meets flat on. Wheel rays point down and ignore it.
+ */
+const DRAIN_BARRIER_LIFT = 0.35;
+/** Faces whose normal's vertical part is below this count as wall. */
+const WALL_NORMAL_Y = 0.35;
+
 /** Road ribbons, junction patches and drains as one chunk-local triangle soup for a trimesh collider. */
 function roadTriangles(parts: Map<string, BufferGeometry>): { positions: Float32Array; indices: Uint32Array } | null {
   const geoms = COLLIDER_MATERIALS.map((n) => parts.get(n)).filter((g): g is BufferGeometry => !!g);
   if (!geoms.length) return null;
-  let vCount = 0;
-  let iCount = 0;
+  const pos: number[] = [];
+  const idx: number[] = [];
   for (const g of geoms) {
-    vCount += g.attributes.position.count;
-    iCount += g.index ? g.index.count : g.attributes.position.count;
-  }
-  const positions = new Float32Array(vCount * 3);
-  const indices = new Uint32Array(iCount);
-  let vo = 0;
-  let io = 0;
-  for (const g of geoms) {
-    positions.set(g.attributes.position.array as Float32Array, vo * 3);
-    const n = g.attributes.position.count;
-    if (g.index) {
-      const src = g.index.array;
-      for (let i = 0; i < src.length; i++) indices[io + i] = src[i] + vo;
-      io += src.length;
-    } else {
-      for (let i = 0; i < n; i++) indices[io + i] = vo + i;
-      io += n;
+    const src = g.attributes.position.array as Float32Array;
+    const vo = pos.length / 3;
+    for (let i = 0; i < src.length; i++) pos.push(src[i]);
+    const tri = g.index ? g.index.array : null;
+    const n = tri ? tri.length : g.attributes.position.count;
+    const at = (i: number) => (tri ? tri[i] : i);
+    const drain = g === parts.get("drain");
+    for (let i = 0; i + 2 < n; i += 3) {
+      const a = at(i), b = at(i + 1), c = at(i + 2);
+      idx.push(a + vo, b + vo, c + vo);
+      if (!drain) continue;
+      // Face normal's vertical share.
+      const ux = src[b * 3] - src[a * 3], uy = src[b * 3 + 1] - src[a * 3 + 1], uz = src[b * 3 + 2] - src[a * 3 + 2];
+      const wx = src[c * 3] - src[a * 3], wy = src[c * 3 + 1] - src[a * 3 + 1], wz = src[c * 3 + 2] - src[a * 3 + 2];
+      const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-9 || Math.abs(ny) / len > WALL_NORMAL_Y) continue;
+      const base = pos.length / 3;
+      for (const v of [a, b, c]) pos.push(src[v * 3], src[v * 3 + 1] + DRAIN_BARRIER_LIFT, src[v * 3 + 2]);
+      idx.push(base, base + 1, base + 2);
     }
-    vo += n;
   }
-  return { positions, indices };
+  return { positions: new Float32Array(pos), indices: new Uint32Array(idx) };
 }

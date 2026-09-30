@@ -5,7 +5,7 @@ import { CuboidCollider, RigidBody, type RapierRigidBody, useBeforePhysicsStep, 
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type Group, type Object3D, Quaternion, Vector3 } from "three";
 import { MICRA_TUNING as T } from "@/game/config/micraTuning";
-import { gameEvents } from "@/game/core/events";
+import { gameEvents, type TrafficVehicleKind } from "@/game/core/events";
 import { input, wasPressed } from "@/game/core/input";
 import { useGameStore } from "@/game/store/gameStore";
 import { useVehicleStore } from "@/game/store/vehicleStore";
@@ -15,7 +15,15 @@ import { type MicraRig, MicraModel } from "./micra/MicraModel";
 import { CAR_COLLISION_GROUPS, MicraSim } from "./micra/micraSim";
 import { useMicraDebugKeys } from "./micra/useMicraDebugKeys";
 import { MICRA_PASSENGER_CAPACITY } from "./micraSpec";
+import { playerVehicle } from "./playerVehicle";
 import type { Spawn } from "./spawn";
+
+/** Trying to drive but going nowhere this long (s) means stuck; R recovers below RECOVER_MAX_SPEED (m/s). */
+const STUCK_AFTER = 2.5;
+const RECOVER_MAX_SPEED = 3;
+/** Recovery looks for a lane this far away, and drops the car from this high onto it. */
+const RECOVER_REACH = 30;
+const RECOVER_DROP = 0.45;
 
 /** Below this speed (m/s) the car counts as stopped. */
 const STOP_THRESHOLD = 0.15;
@@ -34,7 +42,46 @@ type MicraProps = {
   debugKeys?: boolean;
 };
 
+const VEHICLE_NAMES: Record<TrafficVehicleKind, string> = {
+  micra: "another Micra",
+  car: "a private car",
+  peugeot: "a Peugeot",
+  keke: "a keke",
+  okada: "an okada",
+  bus: "a bus",
+  truck: "a truck",
+  trailer: "a trailer",
+};
+
 const tmpQ = new Quaternion();
+const recoverQ = new Quaternion();
+const pitchQ = new Quaternion();
+const AXIS_Y = new Vector3(0, 1, 0);
+const AXIS_X = new Vector3(1, 0, 0);
+
+/**
+ * Put the car back on the nearest lane (the one it was driving along if it's
+ * close), facing along it, just above the road. Returns false with no road near.
+ */
+function recover(rb: RapierRigidBody, roads: RoadData | null): boolean {
+  const g = roads?.graph;
+  if (!g) return false;
+  const p = rb.translation();
+  const q = rb.rotation();
+  const hx = -2 * (q.x * q.z + q.w * q.y);
+  const hz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+  const hit = g.nearestLane(p.x, p.z, RECOVER_REACH, hx, hz);
+  if (!hit) return false;
+  const len = g.polyline(hit.dir).length;
+  const at = g.sample(hit.dir, Math.min(Math.max(hit.s, 3), Math.max(3, len - 3)), { x: 0, y: 0, z: 0, dx: 0, dz: 0, grade: 0 });
+  const off = g.laneOffset(hit.dir, hit.lane);
+  recoverQ.setFromAxisAngle(AXIS_Y, Math.atan2(-at.dx, -at.dz)).multiply(pitchQ.setFromAxisAngle(AXIS_X, Math.atan(at.grade)));
+  rb.setTranslation({ x: at.x - at.dz * off, y: at.y + RECOVER_DROP, z: at.z + at.dx * off }, true);
+  rb.setRotation({ x: recoverQ.x, y: recoverQ.y, z: recoverQ.z, w: recoverQ.w }, true);
+  rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  return true;
+}
 const tmpV = new Vector3();
 
 /**
@@ -96,6 +143,21 @@ export function Micra({ id = "player", spawn, roads, focus, camera = true, debug
       onMessage: say,
     };
     sim.current = s;
+    playerVehicle.id = id;
+    playerVehicle.body = rb;
+    playerVehicle.active = true;
+
+    // Traffic works out the damage from closing speed and the other vehicle's mass.
+    const offHit = gameEvents.on("COLLISION", ({ vehicleId, otherKind, damage, relativeSpeed }) => {
+      if (vehicleId !== id) return;
+      s.applyImpact(damage, relativeSpeed / 8);
+      if (relativeSpeed > 2.5) say(`${relativeSpeed > 7 ? "Crashed into" : "Hit"} ${VEHICLE_NAMES[otherKind]}`);
+    });
+    return () => {
+      offHit();
+      playerVehicle.active = false;
+      playerVehicle.body = null;
+    };
   }, [world, rapier, id]);
 
   // Remove the controller in the commit phase, before <Physics> frees the world on unmount.
@@ -122,6 +184,7 @@ export function Micra({ id = "player", spawn, roads, focus, camera = true, debug
     accel: new Vector3(),
     roll: 0,
     pitch: 0,
+    stuckTime: 0,
   });
 
   useFrame((_, dt) => {
@@ -141,6 +204,14 @@ export function Micra({ id = "player", spawn, roads, focus, camera = true, debug
       vehicle.setMessage(mode === "manual" ? "Manual: Q down, Z up" : "Automatic");
     }
     if (wasPressed("park")) s.togglePark();
+    if (wasPressed("recover")) {
+      const speedNow = Math.hypot(rb.linvel().x, rb.linvel().z);
+      if (speedNow > RECOVER_MAX_SPEED) vehicle.setMessage("Stop first");
+      else if (recover(rb, roadsRef.current)) {
+        st.stuckTime = 0;
+        vehicle.setMessage("Your passengers pushed you back onto the road");
+      } else vehicle.setMessage("No road near enough to push you onto");
+    }
     if (wasPressed("shiftUp")) s.shiftUp();
     if (wasPressed("shiftDown")) s.shiftDown();
     if (wasPressed("interact")) {
@@ -154,6 +225,17 @@ export function Micra({ id = "player", spawn, roads, focus, camera = true, debug
     // Stopped / moving, as before.
     const v = rb.linvel();
     const speed = Math.hypot(v.x, v.y, v.z);
+
+    // Stuck: pressing the pedals and going nowhere, or wheels off the ground (high-centred on a drain).
+    let grounded = 0;
+    for (let i = 0; i < 4; i++) if (s.controller.wheelIsInContact(i)) grounded++;
+    const trying = !s.parked && s.engineOn && !s.task && (input.throttle > 0.3 || input.brake > 0.3);
+    st.stuckTime = speed < 0.6 && (trying || grounded < 3) ? st.stuckTime + dt : 0;
+    const stuck = st.stuckTime > STUCK_AFTER;
+    if (stuck !== vehicle.stuck) {
+      useVehicleStore.setState({ stuck });
+      if (stuck) vehicle.setMessage(input.source === "touch" ? "Stuck! Tap PUSH and your passengers will push you out" : "Stuck! Press R and your passengers will push you out");
+    }
     if (!st.moving && speed > MOVE_THRESHOLD) st.moving = true;
     else if (st.moving && speed < STOP_THRESHOLD) {
       st.moving = false;
@@ -193,6 +275,11 @@ export function Micra({ id = "player", spawn, roads, focus, camera = true, debug
     }
 
     focus?.position.set(p.x, p.y, p.z);
+    const q = rb.rotation();
+    const hx = -2 * (q.x * q.z + q.w * q.y);
+    const hz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+    const hl = Math.hypot(hx, hz) || 1;
+    Object.assign(playerVehicle, { x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, speed, fx: hx / hl, fz: hz / hl, mass: s.mass });
 
     // HUD. Transient values every frame; the rest only when they change.
     useGameStore.setState({ speed });

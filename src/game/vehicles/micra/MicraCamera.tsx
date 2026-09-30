@@ -9,7 +9,7 @@ import type { CameraMode } from "@/game/store/vehicleStore";
 import { getQuality } from "@/game/world/quality";
 import { MICRA_DRIVER_EYE } from "../micraSpec";
 import type { MicraRig } from "./MicraModel";
-import type { MicraSim } from "./micraSim";
+import { type MicraSim, WHEEL_RAY_GROUPS } from "./micraSim";
 
 type RapierContext = ReturnType<typeof useRapier>;
 
@@ -145,7 +145,7 @@ class MicraCameraRig {
     const dist = dir.length();
     if (dist > 1e-3) {
       dir.divideScalar(dist);
-      const hit = world.castShape(pivot, { x: 0, y: 0, z: 0, w: 1 }, dir, this.ball, 0, dist, true, flags, undefined, undefined, body);
+      const hit = world.castShape(pivot, { x: 0, y: 0, z: 0, w: 1 }, dir, this.ball, 0, dist, true, flags, WHEEL_RAY_GROUPS, undefined, body);
       if (hit) this.pos.copy(pivot).addScaledVector(dir, Math.max(0.2, hit.time_of_impact - 0.05));
     }
     // Never under the ground: ray down onto terrain and roads only (not rooftops).

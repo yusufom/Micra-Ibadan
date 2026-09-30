@@ -104,6 +104,7 @@ class RoadEdge:
     cs: np.ndarray = None  # (n,) cross slope (dh per m to the right)
     grade: float = 0.0  # % from u to v
     max_grade: float = 0.0  # steepest GRADE_WINDOW_M stretch, %
+    roundabout: bool = False  # part of a roundabout ring (junction=roundabout|circular)
 
     @property
     def length(self) -> float:
@@ -273,6 +274,7 @@ def build_road_graph(G: nx.MultiDiGraph, dem: DemGrid, area: Area) -> tuple[dict
                 surface=surface,
                 surface_tag=str(surface_tag) if surface_tag else None,
                 bridge=_truthy(d.get("bridge")),
+                roundabout=_one(d.get("junction")) in ("roundabout", "circular"),
                 lane_width=lane_w,
                 xz=xz,
                 s=s,
@@ -379,6 +381,7 @@ def edge_to_json(e: RoadEdge) -> dict:
         "surface": e.surface,
         "surfaceTag": e.surface_tag,
         "bridge": e.bridge,
+        "roundabout": e.roundabout,
         "width": round(e.width, 2),
         "drains": e.has_drains,
         "length": round(e.length, 1),
@@ -497,6 +500,7 @@ def build_road_meshes(nodes, edges, bank: MeshBank) -> None:
                 pos, faces, nr, uv = sweep(xz, s, nrm, hc, cs, prof, lift=ROAD_LIFT)
                 col = _drain_colors(prof, len(xz))
                 bank.add("drain", pos, faces, nr, uv, col)
+            _drain_caps(xz, nrm, hc, cs, hw, bank)
 
         for nid, k in ((e.u, 0), (e.v, -1)):
             if nid in trims:
@@ -506,6 +510,37 @@ def build_road_meshes(nodes, edges, bank: MeshBank) -> None:
 
     for nid, items in ends.items():
         _junction_patch(nodes[nid], items, bank)
+
+
+def _drain_caps(xz, nrm, hc, cs, hw, bank: MeshBank) -> None:
+    """Close both drain walls at each end of a road ribbon, so the walls are solid
+    blocks and a car meeting one end-on hits a face instead of slipping inside."""
+    w0, w1, w2, w3 = hw, hw + DRAIN_WALL, hw + DRAIN_WALL + DRAIN_WIDTH, hw + DRAIN_ZONE
+    lip = DRAIN_DEPTH_LIP
+    # (inner offset, outer offset, bottom height) of each wall block.
+    blocks = [(w0, w1, 0.0), (w2, w3, -0.4)]
+    pos, faces = [], []
+    for k, out in ((0, -1.0), (-1, 1.0)):
+        tx, tz = xz[min(1, len(xz) - 1)] - xz[0] if k == 0 else xz[-1] - xz[-2]
+        tl = math.hypot(tx, tz) or 1.0
+        tx, tz = tx / tl * out, tz / tl * out
+        for side in (-1.0, 1.0):
+            for a, b, bottom in blocks:
+                quad = []
+                for o, d in ((a, bottom), (b, bottom), (b, lip), (a, lip)):
+                    lat = side * o
+                    quad.append((xz[k][0] + nrm[k][0] * lat, hc[k] + cs[k] * lat + d + ROAD_LIFT, xz[k][1] + nrm[k][1] * lat))
+                base = len(pos)
+                pos.extend(quad)
+                f = np.array([[base, base + 1, base + 2], [base, base + 2, base + 3]])
+                faces.append(orient_faces(np.asarray(pos, dtype=np.float64), f, np.array([tx, 0.0, tz])))
+    if not pos:
+        return
+    pos = np.asarray(pos, dtype=np.float64)
+    faces = np.concatenate(faces)
+    uv = np.stack([pos[:, 0], pos[:, 1]], axis=1)
+    col = np.tile(rgba(DRAIN_WALL_RGB), (len(pos), 1))
+    bank.add("drain", pos, faces, vertex_normals(pos, faces), uv, col)
 
 
 def _drain_colors(prof, n) -> np.ndarray:

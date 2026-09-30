@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { trafficStats } from "@/game/npc/traffic/trafficStats";
 import { useWorldStore } from "@/game/store/worldStore";
 import { GRADE_BANDS } from "@/game/world/debug/gradeBands";
 
@@ -31,6 +33,7 @@ export function WorldOverlay({ debugTools }: { debugTools: boolean }) {
           <div className="text-white/60">
             <b>[ ]</b> passengers · <b>L</b> luggage · <b>B</b> burst tyre · <b>N</b> condition −20 · <b>O</b> overheat
           </div>
+          <TrafficLine />
           {freeFly && <div className="text-white/60">drag to look · WASD · E/Q up/down · Shift fast · wheel speed</div>}
           {showGrades && (
             <div className="mt-1 flex flex-wrap gap-x-2">
@@ -45,5 +48,26 @@ export function WorldOverlay({ debugTools }: { debugTools: boolean }) {
         </div>
       )}
     </>
+  );
+}
+
+/** Traffic counts, refreshed twice a second from trafficStats. */
+function TrafficLine() {
+  const [s, setS] = useState(() => ({ ...trafficStats }));
+  useEffect(() => {
+    const id = setInterval(() => setS({ ...trafficStats }), 500);
+    return () => clearInterval(id);
+  }, []);
+  if (!s.enabled) return null;
+  const kinds = Object.entries(s.byKind)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k} ${n}`)
+    .join(" · ");
+  return (
+    <div className="text-white/60">
+      traffic {s.active}/{s.target} ({s.parked} parked) · bodies {s.physics} · {s.ms.toFixed(2)} ms · waving {s.hailers} · stolen {s.stolen} · horns {s.horns}
+      <br />
+      {kinds}
+    </div>
   );
 }

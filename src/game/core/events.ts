@@ -8,6 +8,9 @@ export type Vec3Tuple = [x: number, y: number, z: number];
 
 export type EnforcementAgency = "OYRTMA" | "VIO" | "FRSC" | "POLICE" | "TOUT";
 
+/** AI traffic vehicle types (src/game/npc/traffic/vehicleTypes.ts). */
+export type TrafficVehicleKind = "micra" | "car" | "keke" | "okada" | "truck" | "trailer" | "bus" | "peugeot";
+
 export type GameEvents = {
   PASSENGER_BOARDED: {
     passengerId: string;
@@ -32,8 +35,33 @@ export type GameEvents = {
     reason: string;
     position: Vec3Tuple;
   };
-  /** Horn pressed (once per press, not per frame held). */
+  /** Horn pressed (once per press, not per frame held). Traffic horns carry their vehicle type and why. */
   HORN: {
+    vehicleId: string;
+    position: Vec3Tuple;
+    vehicleKind?: TrafficVehicleKind;
+    reason?: "honkBack" | "impatient" | "warning" | "angry";
+  };
+  /** The player's Micra hit an AI vehicle. */
+  COLLISION: {
+    vehicleId: string;
+    otherId: string;
+    otherKind: TrafficVehicleKind;
+    position: Vec3Tuple;
+    /** Closing speed at impact, m/s. */
+    relativeSpeed: number;
+    /** Condition points the Micra loses. */
+    damage: number;
+  };
+  /** Someone waving on the roadside was picked up by a rival Micra. */
+  PASSENGER_STOLEN: {
+    hailId: number;
+    vehicleId: string;
+    position: Vec3Tuple;
+  };
+  /** The player stopped beside someone waving for a taxi. Boarding is up to the passenger system. */
+  HAIL_REACHED: {
+    hailId: number;
     vehicleId: string;
     position: Vec3Tuple;
   };

@@ -119,6 +119,8 @@ def _classify(features: gpd.GeoDataFrame, osm_b: gpd.GeoDataFrame):
             pois.append({**base, "type": "fuel", "brand": _val(r, "operator")})
         elif am == "police":
             pois.append({**base, "type": "police"})
+        elif am == "school":
+            pois.append({**base, "type": "school"})
         else:
             for key, vals in LANDMARK.items():
                 v = _val(r, key)

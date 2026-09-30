@@ -165,6 +165,14 @@ export const MICRA_TUNING = {
     crashThreshold: 1.6,
     /** Condition lost per m/s of crash speed change above the threshold. */
     crashDamage: 2.2,
+    /** Hitting traffic: closing speeds below this (m/s) are a scrape and cost nothing. */
+    vehicleHitMinSpeed: 1,
+    /** Condition lost per m/s of closing speed above vehicleHitMinSpeed, against a car of the Micra's mass. */
+    vehicleHitDamage: 1.6,
+    /** The other vehicle's mass scales damage by (mass / Micra mass)^0.5, clamped to this range (okada … trailer). */
+    vehicleHitMassScale: [0.35, 2.2] as [number, number],
+    /** Most condition one hit can cost. */
+    vehicleHitMaxDamage: 25,
   },
 
   stall: {

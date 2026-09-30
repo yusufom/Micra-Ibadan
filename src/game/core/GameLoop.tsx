@@ -2,6 +2,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
+import { startHornAudio } from "@/game/audio/hornAudio";
 import { useGameStore } from "@/game/store/gameStore";
 import { startGameSystems } from "@/game/systems";
 import { DAY_START_HOUR, gameClock } from "./clock";
@@ -22,7 +23,9 @@ export function GameLoop() {
     gameClock.reset(startHourFromUrl());
     const stopInput = startInput();
     const stopSystems = startGameSystems();
+    const stopHorns = startHornAudio();
     return () => {
+      stopHorns();
       stopSystems();
       stopInput();
     };

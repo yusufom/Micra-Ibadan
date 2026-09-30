@@ -23,9 +23,18 @@ export type RoadEdge = {
   name: string | null;
   ref: string | null;
   highway: string;
+  /** Total lanes (both directions on two-way roads). */
+  lanes: number;
   oneway: boolean;
+  speedLimitKph: number;
   surface: "paved" | "unpaved";
+  bridge: boolean;
+  /** Carriageway width, m. */
   width: number;
+  /** Raised drains beside the kerb. */
+  drains: boolean;
+  /** Part of a roundabout ring (OSM junction=roundabout). Missing in chunks built before it was added. */
+  roundabout?: boolean;
   length: number;
   /** Average grade from u to v, %. */
   grade: number;
@@ -37,7 +46,23 @@ export type RoadEdge = {
 
 export type RoadNode = { id: number; x: number; y: number; z: number; degree: number };
 
-export type Garage = { name: string; type: string; id: string; x: number; y: number; z: number };
+/** Where a stop, garage or POI meets the road graph. `side` is relative to the edge's u → v direction. */
+export type RoadRef = { edgeId: number; s: number; side: "left" | "right"; distance: number };
+
+export type Garage = { name: string; type: string; id: string; x: number; y: number; z: number; road?: RoadRef };
+
+export type Stop = { type: string; id: string; name: string; x: number; y: number; z: number; road?: RoadRef };
+
+export type Poi = {
+  type: "landmark" | "market" | "fuel" | "police" | "school";
+  kind?: string;
+  id: string;
+  name?: string;
+  x: number;
+  y: number;
+  z: number;
+  road?: RoadRef;
+};
 
 export type FarFieldMeta = {
   heightfield: string;
@@ -56,7 +81,9 @@ export type Manifest = {
   heightfield: { samples: number; spacing: number };
   chunks: ChunkMeta[];
   roadGraph: { nodes: RoadNode[]; edges: RoadEdge[] };
+  stops: Stop[];
   garages: Garage[];
+  pois: Poi[];
   attribution: Attribution[];
   /** Added in format version 2. */
   farField?: FarFieldMeta;

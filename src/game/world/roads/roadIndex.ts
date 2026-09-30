@@ -9,7 +9,7 @@ const CELL = 25;
 /** Points further than this from any road centreline count as off-road. */
 const DEFAULT_REACH = 8;
 
-type Segment = { edge: RoadEdge; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number };
+type Segment = { edge: RoadEdge; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; /** Distance along the edge (u → v) at the segment start. */ s0: number };
 
 export type RoadHit = {
   edge: RoadEdge;
@@ -24,6 +24,8 @@ export type RoadHit = {
   grade: number;
   /** Horizontal distance from the query point. */
   distance: number;
+  /** Distance along the edge from u (horizontal metres). */
+  s: number;
 };
 
 const cellKey = (i: number, j: number) => i * 73856093 + j * 19349663;
@@ -34,11 +36,14 @@ export class RoadIndex {
   constructor(edges: RoadEdge[]) {
     for (const edge of edges) {
       const p = edge.polyline;
+      let s0 = 0;
       for (let k = 0; k < p.length - 1; k++) {
         const [x0, y0, z0] = p[k];
         const [x1, y1, z1] = p[k + 1];
-        if (Math.hypot(x1 - x0, z1 - z0) < 0.01) continue;
-        const seg: Segment = { edge, x0, y0, z0, x1, y1, z1 };
+        const len = Math.hypot(x1 - x0, z1 - z0);
+        s0 += len;
+        if (len < 0.01) continue;
+        const seg: Segment = { edge, x0, y0, z0, x1, y1, z1, s0: s0 - len };
         const i0 = Math.floor(Math.min(x0, x1) / CELL);
         const i1 = Math.floor(Math.max(x0, x1) / CELL);
         const j0 = Math.floor(Math.min(z0, z1) / CELL);
@@ -99,6 +104,7 @@ export class RoadIndex {
       dz: ez / run,
       grade: (best.y1 - best.y0) / run,
       distance: Math.hypot(hx - x, hz - z),
+      s: best.s0 + run * bestT,
     };
   }
 

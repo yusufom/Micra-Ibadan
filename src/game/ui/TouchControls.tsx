@@ -2,6 +2,7 @@
 
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useSyncExternalStore } from "react";
 import { type InputAction, pressAction, touchInput } from "@/game/core/input";
+import { useVehicleStore } from "@/game/store/vehicleStore";
 
 /** Horizontal drag (px) from the touch-down point for full lock. */
 const STEER_RANGE = 70;
@@ -40,6 +41,7 @@ export function TouchControls() {
   );
   const steer = useRef<{ id: number; x0: number } | null>(null);
   const knob = useRef<HTMLDivElement>(null);
+  const stuck = useVehicleStore((s) => s.stuck);
 
   useEffect(() => {
     touchInput.active = visible;
@@ -105,6 +107,11 @@ export function TouchControls() {
       </div>
       <div className="absolute right-4 bottom-8 flex flex-col items-end gap-3">
         <div className="flex gap-2">
+          {stuck && (
+            <button type="button" className={`${btn} h-11 px-3 text-xs`} {...tap("recover")}>
+              PUSH
+            </button>
+          )}
           <button type="button" className={`${btn} h-11 w-11 text-xs`} {...tap("park")}>
             P
           </button>

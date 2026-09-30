@@ -7,15 +7,17 @@
  * before anything reads it (GameLoop does both).
  *
  * Keyboard: WASD / arrows drive, Space handbrake, H horn, E interact,
- * C camera, Q / Z shift down / up (manual), M auto/manual gearbox, P park.
+ * C camera, Q / Z shift down / up (manual), M auto/manual gearbox, P park,
+ * R get pushed back onto the road when stuck.
  * Gamepad (standard mapping): left stick steer, RT gas, LT brake, A handbrake,
- * B horn, X interact, Y camera, LB / RB shift down / up, View/Back gearbox, Start park.
+ * B horn, X interact, Y camera, LB / RB shift down / up, View/Back gearbox, Start park,
+ * left stick click recover.
  * Touch: see src/game/ui/TouchControls.tsx, which writes `touchInput`.
  */
 
 export type InputSource = "keyboard" | "touch" | "gamepad";
 
-export type InputAction = "interact" | "camera" | "shiftUp" | "shiftDown" | "gearbox" | "park";
+export type InputAction = "interact" | "camera" | "shiftUp" | "shiftDown" | "gearbox" | "park" | "recover";
 
 export type InputState = {
   /** 0–1. */
@@ -56,6 +58,7 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   KeyQ: "shiftDown",
   KeyM: "gearbox",
   KeyP: "park",
+  KeyR: "recover",
 };
 
 const PAD_ACTIONS: [button: number, action: InputAction][] = [
@@ -65,6 +68,7 @@ const PAD_ACTIONS: [button: number, action: InputAction][] = [
   [4, "shiftDown"],
   [8, "gearbox"],
   [9, "park"],
+  [10, "recover"],
 ];
 
 const PAD_DEADZONE = 0.15;

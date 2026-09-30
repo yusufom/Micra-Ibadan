@@ -64,14 +64,14 @@ Chunk `(cx, cz)` covers `x ∈ [cx·200, (cx+1)·200)` and `z ∈ [cz·200, (cz+
     - `passenger`: at stops, garages and markets
   - `buildings` (format 2+): one collider per building whose centroid is in the chunk, spanning `y0` (1.5 m below the lowest footprint corner, like the wall skirt) to `y1` (roof eave). Either `{"shape": "box", x, z, hx, hz, yaw}` (world centre, half extents, rotation about +Y applied to the box's local x axis) or `{"shape": "hull", "pts": [[x, z], ...]}` (convex footprint, at most about 8 points).
   - `props` (format 2+): `{type, x, y, z, yaw}` with `yaw` about +Y (0 = north) so the prop's local -Z faces its road. Types are `pole` (with `next: [x, y, z]`, the next pole on the same road for stringing wires), `kiosk` (`variant` 0–3 picks the paint), `mechanic_shed` (`variant` 0–2), `garage_shelter` and `garage_board` (`name`).
-- **`manifest.json`**: area info, projection and origin elevation, chunk list with bounds, heights and file sizes. It also holds the full road graph (`nodes`, `edges`), named stops and garages (unnamed ones are labelled from the nearest road, with `nameFromOsm: false`), POIs, the `farField` entry (format 2+), and attribution text that must be shown in game.
+- **`manifest.json`**: area info, projection and origin elevation, chunk list with bounds, heights and file sizes. It also holds the full road graph (`nodes`, `edges`), named stops and garages (unnamed ones are labelled from the nearest road, with `nameFromOsm: false`), POIs (`landmark`, `market`, `fuel`, `police`, `school`), the `farField` entry (format 2+), and attribution text that must be shown in game.
 - **`far.bin` / `far.jpg`** (format 2+): the far-field LOD for the whole extent. `far.bin` is `rows × cols` float32 LE heights at `farField.spacing` (20 m), row-major with row = z (north→south), sample (i, j) at `(extent.minX + i·spacing, extent.minZ + j·spacing)`. `far.jpg` covers the extent with row 0 at `extent.minZ`.
 
 Road mesh UVs: ribbons run `u` 0..1 across the carriageway and `v` in metres along it. Junction patches use `u = 0.5` everywhere (no road edge), which the game uses to skip edge wear.
 
 Format version 2 added `buildings`, `props` and the far field. Version 1 readers can ignore them.
 
-Road edge fields: `wayId`, `name`, `ref`, `highway`, `lanes`, `oneway`, `speedLimitKph`, `surface`, `bridge`, `width`, `drains`, `length`, `grade` (average % from `u` to `v`), `maxGrade` (steepest 20 m stretch, %) and `polyline` (`[x, y, z]` points). The `*Tagged` / `surfaceTag` fields say which values came from OSM rather than class defaults. Untagged residential and unclassified roads are paved or unpaved at random, seeded by way id.
+Road edge fields: `wayId`, `name`, `ref`, `highway`, `lanes`, `oneway`, `speedLimitKph`, `surface`, `bridge`, `roundabout` (OSM `junction=roundabout|circular`), `width`, `drains`, `length`, `grade` (average % from `u` to `v`), `maxGrade` (steepest 20 m stretch, %) and `polyline` (`[x, y, z]` points). The `*Tagged` / `surfaceTag` fields say which values came from OSM rather than class defaults. Untagged residential and unclassified roads are paved or unpaved at random, seeded by way id.
 
 ## Known limits
 
