@@ -1,29 +1,31 @@
 "use client";
 
-import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { lazy, Suspense, useSyncExternalStore } from "react";
+import { lazy, Suspense, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Object3D } from "three";
+import { MICRA_TUNING } from "@/game/config/micraTuning";
 import { GameLoop } from "@/game/core/GameLoop";
 import { useWorldStore } from "@/game/store/worldStore";
 import { Attribution } from "@/game/ui/Attribution";
 import { Hud } from "@/game/ui/Hud";
+import { TouchControls } from "@/game/ui/TouchControls";
 import { WorldOverlay } from "@/game/ui/WorldOverlay";
 import { Micra } from "@/game/vehicles/Micra";
+import { FALLBACK_SPAWN, findGarageSpawn } from "@/game/vehicles/spawn";
 import { ChunkWorld } from "./ChunkWorld";
 import { FreeFlyCamera } from "./debug/FreeFlyCamera";
 import { useDebugKeys, useDebugToolsEnabled } from "./debug/useDebugKeys";
 import { Environment } from "./Environment";
 import { Ground } from "./Ground";
 import { getQuality } from "./quality";
+import { getRoadData } from "./roads/roadData";
+import { PotholeLayer } from "./roads/PotholeLayer";
 
 const isDev = process.env.NODE_ENV === "development";
 
 // Statically false in production builds, so r3f-perf is dropped from the bundle.
 const Perf = isDev ? lazy(() => import("r3f-perf").then((m) => ({ default: m.Perf }))) : null;
-
-/** Dugbe junction, the projection origin. Road surface is ~0.4 m above origin height here. */
-const SPAWN: [number, number, number] = [0, 1.5, 0];
 
 /** ?debug in the URL draws Rapier colliders (dev only). */
 function usePhysicsDebug(): boolean {
@@ -42,6 +44,19 @@ export default function GameCanvas() {
   const quality = getQuality();
   const status = useWorldStore((s) => s.status);
   const freeFly = useWorldStore((s) => s.freeFly);
+  const manifest = useWorldStore((s) => s.manifest);
+
+  // Dugbe garage, facing Mokola along the road graph. Chunks stream around `focus`,
+  // which the Micra keeps at its position; it starts at the spawn so the first
+  // chunks load under the car.
+  const spawn = useMemo(() => (manifest ? findGarageSpawn(manifest) : status === "missing" ? FALLBACK_SPAWN : null), [manifest, status]);
+  const roads = useMemo(() => (manifest ? getRoadData(manifest) : null), [manifest]);
+  const [focus] = useState(() => new Object3D());
+  useLayoutEffect(() => {
+    if (spawn) focus.position.set(...spawn.position);
+  }, [spawn, focus]);
+  // Free fly streams around the camera instead.
+  const streamFocus = freeFly && debugTools ? null : focus;
 
   return (
     <div className="fixed inset-0 bg-black">
@@ -49,25 +64,22 @@ export default function GameCanvas() {
         shadows={quality.shadows ? "percentage" : false}
         dpr={[1, quality.maxDpr]}
         gl={{ antialias: quality.tier === "high", powerPreference: "high-performance" }}
-        camera={{ position: [SPAWN[0] + 7, SPAWN[1] + 4, SPAWN[2] + 9], fov: 50, near: 0.3, far: quality.viewDistance }}
+        camera={{ position: [8, 5, 10], fov: MICRA_TUNING.camera.fov, near: 0.3, far: quality.viewDistance }}
       >
         <Suspense fallback={null}>
-          <Environment />
-          {/* Hold the simulation until the chunks under the car have colliders. Chunks stream
-              around the camera for now, so free fly also pauses it: flying off would unload the
-              ground under the car. */}
-          <Physics gravity={[0, -9.81, 0]} debug={physicsDebug} paused={status === "loading" || freeFly}>
-            <ChunkWorld area="dugbe-ui" />
+          <Environment focus={streamFocus} />
+          {/* Hold the simulation until the chunks under the car have colliders. Free fly also
+              pauses it: flying off would unload the ground under the car. Physics runs before
+              the default frame callbacks so the camera sees this frame's car. */}
+          <Physics gravity={[0, -9.81, 0]} debug={physicsDebug} paused={status === "loading" || freeFly} updatePriority={-0.5}>
+            <ChunkWorld area="dugbe-ui" focus={streamFocus} />
             {status === "missing" && <Ground />}
-            <Micra position={SPAWN} />
+            {spawn && <Micra spawn={spawn} roads={roads} focus={focus} camera={!(freeFly && debugTools)} debugKeys={debugTools} />}
+            {roads && <PotholeLayer field={roads.potholes} focus={streamFocus ?? undefined} />}
           </Physics>
           <GameLoop />
         </Suspense>
-        {freeFly && debugTools ? (
-          <FreeFlyCamera />
-        ) : (
-          <OrbitControls target={[SPAWN[0], SPAWN[1], SPAWN[2]]} maxPolarAngle={Math.PI / 2 - 0.05} makeDefault />
-        )}
+        {freeFly && debugTools && <FreeFlyCamera />}
         {Perf && (
           <Suspense fallback={null}>
             <Perf position="bottom-left" />
@@ -75,6 +87,7 @@ export default function GameCanvas() {
         )}
       </Canvas>
       <Hud />
+      <TouchControls />
       <WorldOverlay debugTools={debugTools} />
       <Attribution />
     </div>

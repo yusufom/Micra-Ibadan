@@ -2,7 +2,7 @@
 
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRapier } from "@react-three/rapier";
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Object3D, Vector3 } from "three";
 import { useWorldStore } from "@/game/store/worldStore";
 import { ChunkManager } from "./ChunkManager";
@@ -14,8 +14,8 @@ import { FarField } from "./terrain/FarField";
 type Props = {
   /** Area key from pipeline/areas.yaml; chunks are served from /chunks/{area}/. */
   area?: string;
-  /** What to stream around. Defaults to the camera; pass the Micra later. */
-  focus?: RefObject<Object3D | null>;
+  /** What to stream around (the Micra). Defaults to the camera, e.g. in free fly. */
+  focus?: Object3D | null;
 };
 
 /** Velocity smoothing per frame, so preloading doesn't flip on camera jitter. */
@@ -48,6 +48,7 @@ export function ChunkWorld({ area = "dugbe-ui", focus }: Props) {
       }
       const manifest = (await res.json()) as Manifest;
       store.setAttribution(manifest.attribution);
+      store.setManifest(manifest);
       const far = await FarField.load(manifest, baseUrl, quality.tier === "low" ? 2 : 1, ctrl.signal).catch((err: unknown) => {
         if (!ctrl.signal.aborted) console.warn("far field unavailable", err);
         return null;
@@ -77,6 +78,7 @@ export function ChunkWorld({ area = "dugbe-ui", focus }: Props) {
       ctrl.abort();
       mgr?.dispose();
       setManager(null);
+      useWorldStore.getState().setManifest(null);
     };
   }, [area, world, rapier]);
 
@@ -95,7 +97,7 @@ export function ChunkWorld({ area = "dugbe-ui", focus }: Props) {
 
   useFrame((_, dt) => {
     if (!manager) return;
-    const p = focus?.current?.position ?? camera.position;
+    const p = focus?.position ?? camera.position;
     if (!Number.isNaN(last.current.x) && dt > 0) {
       step.current.subVectors(p, last.current).divideScalar(dt);
       velocity.current.lerp(step.current, VELOCITY_BLEND);

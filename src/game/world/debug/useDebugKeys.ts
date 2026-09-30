@@ -14,7 +14,7 @@ export function useDebugToolsEnabled(): boolean {
   );
 }
 
-/** F: free-fly camera. G: road grade overlay. H: harmattan haze on/off. ?cam=x,y,z starts in free fly. */
+/** F: free-fly camera. G: road grade overlay. K: harmattan haze on/off (H is the horn). ?cam=x,y,z starts in free fly. */
 export function useDebugKeys(enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return;
@@ -26,7 +26,7 @@ export function useDebugKeys(enabled: boolean): void {
       const s = useWorldStore.getState();
       if (e.code === "KeyF") s.toggleFreeFly();
       else if (e.code === "KeyG") s.toggleGrades();
-      else if (e.code === "KeyH") s.setHarmattan(!s.harmattan);
+      else if (e.code === "KeyK") s.setHarmattan(!s.harmattan);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

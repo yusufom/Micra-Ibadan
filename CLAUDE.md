@@ -8,7 +8,7 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 
 - Nissan Micra K11 hatchback, old and battered, on black steel wheels
 - Livery: wine/maroon body, cream roof and window pillars, black bumpers and side rub strip. The fleet number and route are hand-painted on the front door (e.g. "1542 AKINYELE") under a garage badge. Oyo plates.
-- **5 paying passengers:** 2 squeezed into the front passenger seat and 3 in the back. Capacity and colours live in `src/game/vehicles/micraSpec.ts`.
+- **5 paying passengers:** 2 squeezed into the front passenger seat and 3 in the back. Seats and capacity live in `src/game/vehicles/micraSpec.ts`, colours and signwriting in `src/game/config/livery.ts` (placeholder colours, still to be confirmed).
 
 ## Stack
 
@@ -23,9 +23,10 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 | Path | Contents |
 | --- | --- |
 | `src/app` | Routes only: `/` menu, `/play` game, `/garage`, `/leaderboard` |
-| `src/game/core` | Game loop, clock, event bus (`events.ts`), system registry |
+| `src/game/core` | Game loop, clock, event bus (`events.ts`), system registry, normalised input (`input.ts`) |
 | `src/game/world` | Canvas root, map chunks, roads, buildings, terrain, projection constants |
-| `src/game/vehicles` | Player and traffic vehicles |
+| `src/game/config` | Livery (`livery.ts`) and every driving-feel constant (`micraTuning.ts`) |
+| `src/game/vehicles` | Player and traffic vehicles. `Micra.tsx` wires `micra/micraSim.ts` (drivetrain, load, heat, damage on Rapier's raycast vehicle), `micra/MicraModel.tsx` (procedural model, swap for a .glb keeping `MicraRig`) and `micra/MicraCamera.tsx` |
 | `src/game/npc` | Passengers, touts, officers, pedestrians |
 | `src/game/systems` | Gameplay systems: `economy/`, `enforcement/`, `passengers/` |
 | `src/game/ui` | HUD components (DOM overlay) |
@@ -51,13 +52,20 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 
 OSM does not tag a `junction=roundabout` at Dugbe. The nearest one it tags is the Magazine Rd / Dick Rd roundabout (way 606902218), about 600 m NW. The origin was therefore taken as the node where Iyaganku, Fajuyi and Onireke roads meet. Don't change it once chunk data exists, because every chunk would need regenerating.
 
+## Driving
+
+- All devices go through `src/game/core/input.ts` (`input` + `wasPressed()`); nothing else listens to keys or gamepads. Keyboard: WASD/arrows, Space handbrake, H horn, E interact (radiator water, spare tyre), C camera, Q/Z shift down/up (manual), M auto/manual, P park. Touch overlay in `src/game/ui/TouchControls.tsx`.
+- Auto gearbox: from a standstill a fresh press of S selects reverse, a fresh press of W selects drive. The car starts in park (P: handbrake up, drive disengaged); press P again to drive. Park only engages below ~3.6 km/h.
+- Tune the feel only in `src/game/config/micraTuning.ts`; its header lists what the current numbers measure.
+
 ## World rendering
 
-- `src/game/world/ChunkManager.ts` streams chunks around a focus (the camera for now, the Micra later): the 3×3 around it at full detail with colliders and props, the next ring preloaded in the direction of travel (all of it on the high tier) at reduced detail, and anything beyond 2 rings unloaded and disposed. Scene and physics work is time-sliced in `update()`.
+- `src/game/world/ChunkManager.ts` streams chunks around a focus (the Micra; the camera in free fly): the 3×3 around it at full detail with colliders and props, the next ring preloaded in the direction of travel (all of it on the high tier) at reduced detail, and anything beyond 2 rings unloaded and disposed. Scene and physics work is time-sliced in `update()`.
 - Every chunk surface is merged into one mesh per chunk and drawn with the shared atlas material (`src/game/world/materials/`). A new pipeline material name must be mapped to a tile in `MATERIAL_TILE` (`chunks/chunkMesh.ts`).
 - Beyond the streamed chunks, `terrain/FarField.ts` draws the pipeline's `far.bin` + `far.jpg` as one mesh.
 - Quality tiers are in `src/game/world/quality.ts` (low = phone at 30 fps, high = laptop at 60 fps).
-- Debug (dev, or `?debug` in any build): **F** free-fly camera, **G** road grade overlay, **H** harmattan haze. URL params: `?quality=low|high`, `?hour=17.5`, `?haze=0`, `?cam=x,y,z[,yaw,pitch]` (start in free fly).
+- Road lookups (`roads/roadIndex.ts`, grade under the car) and potholes (`roads/potholes.ts`, seeded per road edge until the pipeline emits them) are built from the manifest's road graph by `roads/roadData.ts`.
+- Debug (dev, or `?debug` in any build): **F** free-fly camera, **G** road grade overlay, **K** harmattan haze, **[ ]** passengers, **L** luggage, **B** burst a tyre, **N** condition −20, **O** overheat. URL params: `?quality=low|high`, `?hour=17.5`, `?haze=0`, `?cam=x,y,z[,yaw,pitch]` (start in free fly).
 
 ## Commands
 

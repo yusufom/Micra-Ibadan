@@ -14,7 +14,7 @@ export type ChunkPhysicsInput = {
   /** samples × samples heights, row-major, row = z (north to south). */
   heights: Float32Array;
   samples: number;
-  /** Road surface triangles, chunk-local. */
+  /** Road surface and drain triangles, chunk-local. */
   roads: { positions: Float32Array; indices: Uint32Array } | null;
   buildings: BuildingCollider[];
   props: Prop[];

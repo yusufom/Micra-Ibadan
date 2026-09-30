@@ -23,6 +23,7 @@ export type RoadEdge = {
   name: string | null;
   ref: string | null;
   highway: string;
+  oneway: boolean;
   surface: "paved" | "unpaved";
   width: number;
   length: number;
@@ -33,6 +34,8 @@ export type RoadEdge = {
   /** [x, y, z] points. */
   polyline: [number, number, number][];
 };
+
+export type RoadNode = { id: number; x: number; y: number; z: number; degree: number };
 
 export type Garage = { name: string; type: string; id: string; x: number; y: number; z: number };
 
@@ -52,7 +55,7 @@ export type Manifest = {
   extent: Bounds;
   heightfield: { samples: number; spacing: number };
   chunks: ChunkMeta[];
-  roadGraph: { edges: RoadEdge[] };
+  roadGraph: { nodes: RoadNode[]; edges: RoadEdge[] };
   garages: Garage[];
   attribution: Attribution[];
   /** Added in format version 2. */

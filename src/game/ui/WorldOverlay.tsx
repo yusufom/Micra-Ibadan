@@ -25,8 +25,11 @@ export function WorldOverlay({ debugTools }: { debugTools: boolean }) {
       {debugTools && (
         <div className="pointer-events-none absolute top-16 left-4 rounded bg-black/55 px-2 py-1.5 font-mono text-[11px] leading-snug text-white/85">
           <div>
-            <b>F</b> free fly {freeFly ? "on" : "off"} · <b>G</b> grades {showGrades ? "on" : "off"} · <b>H</b> haze{" "}
+            <b>F</b> free fly {freeFly ? "on" : "off"} · <b>G</b> grades {showGrades ? "on" : "off"} · <b>K</b> haze{" "}
             {harmattan ? "on" : "off"}
+          </div>
+          <div className="text-white/60">
+            <b>[ ]</b> passengers · <b>L</b> luggage · <b>B</b> burst tyre · <b>N</b> condition −20 · <b>O</b> overheat
           </div>
           {freeFly && <div className="text-white/60">drag to look · WASD · E/Q up/down · Shift fast · wheel speed</div>}
           {showGrades && (

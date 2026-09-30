@@ -32,6 +32,32 @@ export type GameEvents = {
     reason: string;
     position: Vec3Tuple;
   };
+  /** Horn pressed (once per press, not per frame held). */
+  HORN: {
+    vehicleId: string;
+    position: Vec3Tuple;
+  };
+  POTHOLE_HIT: {
+    vehicleId: string;
+    position: Vec3Tuple;
+    /** 0–1. */
+    severity: number;
+    /** Speed at impact, m/s. */
+    speed: number;
+    /** Condition points lost. */
+    damage: number;
+  };
+  TYRE_BURST: {
+    vehicleId: string;
+    /** 0 front-left, 1 front-right, 2 rear-left, 3 rear-right. */
+    wheel: number;
+    position: Vec3Tuple;
+  };
+  ENGINE_STALLED: {
+    vehicleId: string;
+    reason: "hill" | "lugging" | "overheat";
+    position: Vec3Tuple;
+  };
 };
 
 export type GameEventName = keyof GameEvents;

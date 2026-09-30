@@ -388,9 +388,12 @@ function disposeSource(src: ChunkSource): void {
   src.parts.clear();
 }
 
-/** Road ribbons and junction patches as one chunk-local triangle soup for a trimesh collider. */
+/** Parts that get a trimesh collider: the carriageway, plus the raised drains so cars can't drive through their walls. */
+const COLLIDER_MATERIALS = [...ROAD_MATERIALS, "drain"];
+
+/** Road ribbons, junction patches and drains as one chunk-local triangle soup for a trimesh collider. */
 function roadTriangles(parts: Map<string, BufferGeometry>): { positions: Float32Array; indices: Uint32Array } | null {
-  const geoms = ROAD_MATERIALS.map((n) => parts.get(n)).filter((g): g is BufferGeometry => !!g);
+  const geoms = COLLIDER_MATERIALS.map((n) => parts.get(n)).filter((g): g is BufferGeometry => !!g);
   if (!geoms.length) return null;
   let vCount = 0;
   let iCount = 0;

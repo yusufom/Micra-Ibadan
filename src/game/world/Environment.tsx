@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { type RefObject, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   BackSide,
   type Camera,
@@ -102,8 +102,8 @@ void main() {
 `;
 
 type Props = {
-  /** Shadow box centre; defaults to the camera. */
-  focus?: RefObject<Object3D | null>;
+  /** Shadow box centre (the Micra); defaults to the camera. */
+  focus?: Object3D | null;
 };
 
 /** Sky dome, fog and sun state, mutated once per frame outside React. */
@@ -213,7 +213,7 @@ export function Environment({ focus }: Props) {
   }, [scene, quality]);
 
   useFrame(({ camera }) => {
-    const f = focus?.current?.position ?? camera.position;
+    const f = focus?.position ?? camera.position;
     atmosphere.current?.update(useWorldStore.getState().harmattan, camera, f, sunRef.current, hemiRef.current);
   });
 
