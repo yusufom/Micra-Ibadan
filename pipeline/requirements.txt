@@ -1,6 +1,13 @@
-# Map pipeline dependencies (pinned when the pipeline is implemented)
-# pyproj
-# osmium
-# shapely
-# rasterio
-# numpy
+# Map pipeline dependencies. Python 3.11+ (3.12 recommended).
+click==8.5.0
+geopandas==1.2.0
+mapbox-earcut==2.1.0
+numpy==2.5.3
+osmnx==2.1.1
+pyproj==3.8.0
+PyYAML==6.0.3
+rasterio==1.5.1
+requests==2.34.2
+scipy==1.18.1
+shapely==2.1.2
+trimesh==5.1.0

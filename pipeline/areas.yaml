@@ -1,0 +1,34 @@
+# Map areas the pipeline can build. Add a new district by adding an entry under
+# `areas:` and running `python -m pipeline build --area <key>`.
+#
+# bbox is WGS84 [west, south, east, north] in degrees. The pipeline expands it
+# outwards to whole chunks, so the output always covers complete chunks.
+#
+# Chunks sit on one global grid anchored at the Dugbe origin (see
+# src/game/world/projection.ts), so areas built separately line up seamlessly.
+
+defaults:
+  chunk_size: 200            # metres per chunk edge
+  terrain_spacing: 5         # metres between heightfield samples
+  dem_smoothing_m: 12        # Gaussian sigma (metres) applied to the 5 m DEM grid
+  building_min_confidence: 0.7
+  road_max_cross_slope: 0.04 # 4 % maximum side tilt under roads
+  glb_max_bytes: 2000000     # per-chunk .glb budget
+
+areas:
+  dugbe-ui:
+    name: Dugbe to UI
+    description: >-
+      Dugbe (origin), Mokola, Sango, the University of Ibadan main gate and
+      Agbowo, along the Oyo Road corridor.
+    bbox: [3.8720, 7.3820, 3.9200, 7.4520]
+    # Older neighbourhoods where mud brick compounds with rusted zinc roofs are
+    # common. Buildings inside these boxes are more likely to get mud_brick.
+    # [west, south, east, north]
+    old_areas:
+      - name: Sabo
+        bbox: [3.8820, 7.3975, 3.8905, 7.4050]
+      - name: Agbowo
+        bbox: [3.9080, 7.4360, 3.9200, 7.4520]
+      - name: Mokola interior
+        bbox: [3.8840, 7.4060, 3.8920, 7.4150]

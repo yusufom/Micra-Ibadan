@@ -44,3 +44,8 @@ next-env.d.ts
 pipeline/.venv/
 __pycache__/
 *.pyc
+pipeline/cache/
+
+# generated map chunks (python -m pipeline build)
+/public/chunks/*
+!/public/chunks/.gitkeep

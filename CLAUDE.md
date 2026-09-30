@@ -30,8 +30,8 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 | `src/game/systems` | Gameplay systems: `economy/`, `enforcement/`, `passengers/` |
 | `src/game/ui` | HUD components (DOM overlay) |
 | `src/game/store` | zustand stores |
-| `pipeline/` | Python map tooling (OSM + DEM to chunks) |
-| `public/chunks` | Local chunk output for dev |
+| `pipeline/` | Python map tooling (OSM + Open Buildings + DEM to chunks); areas in `pipeline/areas.yaml` |
+| `public/chunks` | Local chunk output for dev (`{area}/manifest.json` + per-chunk files, gitignored) |
 
 ## Rules
 
@@ -59,8 +59,13 @@ pnpm dev              # dev server → http://localhost:3000/play  (add ?debug t
 pnpm lint             # ESLint
 pnpm build            # production build (also checks nothing three-related runs server-side)
 
-# map pipeline (not implemented yet, see pipeline/README.md)
-python3 -m venv pipeline/.venv && source pipeline/.venv/bin/activate
+# map pipeline (see pipeline/README.md). Python 3.12 venv:
+python3.12 -m venv pipeline/.venv && source pipeline/.venv/bin/activate
 pip install -r pipeline/requirements.txt
-python -m pipeline.build --out public/chunks
+python -m pipeline areas                   # list areas in pipeline/areas.yaml
+python -m pipeline fetch --area dugbe-ui   # download sources into pipeline/cache/ (first run ~2 GB)
+python -m pipeline build --area dugbe-ui   # fetch (cached) + write public/chunks/dugbe-ui/
+python -m pipeline build --area dugbe-ui --refresh   # re-download sources
 ```
+
+The map comes from OpenStreetMap, Google Open Buildings (the CC BY 4.0 open dataset) and Copernicus GLO-30. Never use Google Maps or Google 3D Tiles data. Chunks are 200 m on a global grid anchored at Dugbe. Each one has a `.glb` (one mesh per material, max 2 MB), a `.json` (roads, stops, garages, POIs, spawns) and a `.bin` physics heightfield (41×41 float32, row = z). `public/chunks/*` and `pipeline/cache/` are gitignored. The output format is in `pipeline/README.md`.
