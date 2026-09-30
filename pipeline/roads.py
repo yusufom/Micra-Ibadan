@@ -549,7 +549,8 @@ def _junction_patch(node: RoadNode, items, bank: MeshBank) -> None:
     faces = orient_faces(pos, faces, np.array([0.0, 1.0, 0.0]))
     paved = paved_w >= unpaved_w
     mat = "road_paved" if paved else "road_unpaved"
-    uv = np.stack([pos[:, 0] / 4, pos[:, 2] / 4], axis=1)
+    # u = 0.5 everywhere: a junction has no road edge, so the game draws no edge wear.
+    uv = np.stack([np.full(len(pos), 0.5), np.zeros(len(pos))], axis=1)
     col = np.tile(rgba(PAVED_RGB if paved else UNPAVED_RGB), (len(pos), 1))
     key = bank.chunk_of(node.x, node.z)
     bank.add(mat, pos, faces, vertex_normals(pos, faces), uv, col, key=key)

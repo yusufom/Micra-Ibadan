@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import { DAY_START_HOUR } from "@/game/core/clock";
 
 /**
  * Session state that changes at gameplay speed (fares, cash), not per frame.
@@ -15,6 +16,8 @@ export type GameState = {
   passengersOnBoard: number;
   /** Speed in m/s. Written transiently every frame; don't select it in React. */
   speed: number;
+  /** In-game hour of day (0–24), mirrored from gameClock once per in-game minute. */
+  hourOfDay: number;
 
   addFare: (amount: number) => void;
   setPassengers: (count: number) => void;
@@ -27,6 +30,7 @@ const initial = {
   faresCollected: 0,
   passengersOnBoard: 0,
   speed: 0,
+  hourOfDay: DAY_START_HOUR,
 };
 
 export const useGameStore = create<GameState>()(

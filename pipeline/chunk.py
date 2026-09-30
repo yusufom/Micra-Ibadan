@@ -2,10 +2,11 @@
 
 Per chunk (cx, cz), covering x in [cx*S, (cx+1)*S] and z in [cz*S, (cz+1)*S]:
   {cx}_{cz}.glb   terrain, water, roads, drains, buildings (one mesh per material)
-  {cx}_{cz}.json  road edges touching the chunk, stops, garages, POIs, spawn points
+  {cx}_{cz}.json  road edges touching the chunk, stops, garages, POIs, spawn points,
+                  building colliders and street props
   {cx}_{cz}.bin   heightfield for physics: float32 little-endian, (n+1)x(n+1),
                   row-major, row = z index (north->south), col = x index (west->east)
-Plus manifest.json for the whole area.
+Plus manifest.json for the whole area and the far-field LOD (far.bin, far.jpg).
 """
 
 from __future__ import annotations
@@ -23,18 +24,20 @@ import numpy as np
 import shapely
 from scipy import ndimage
 
-from .buildings import add_building_meshes, prepare_buildings, to_game_geoms
+from .buildings import SKIRT_M, add_building_meshes, prepare_buildings, to_game_geoms
 from .config import Area
+from .farfield import build_far_field
 from .fetch_buildings import load_buildings
 from .fetch_dem import DemGrid, load_dem
 from .fetch_osm import load_features, load_graph, load_osm_buildings
 from .glb import MATERIALS, encode_glb
 from .meshes import MeshBank
+from .props import building_colliders, place_props
 from .projection import ORIGIN_LAT, ORIGIN_LON, ORIGIN_OSM_NODE, PROJ4
 from .roads import GRADE_WINDOW_M, ROAD_LIFT, RoadIndex, build_road_graph, build_road_meshes, edge_to_json, node_to_json
 from .terrain import add_terrain_mesh, add_water_meshes, cover_masks, flatten_under_roads
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 SNAP_M = 80.0
 TRAFFIC_SPAWN_EVERY_M = 60.0
 PEDESTRIAN_SPAWN_EVERY_M = 80.0
@@ -235,7 +238,7 @@ def build_area(area: Area, out_root: Path) -> None:
     t0 = time.time()
     out = out_root / area.key
     out.mkdir(parents=True, exist_ok=True)
-    for old in list(out.glob("*.glb")) + list(out.glob("*_*.json")) + list(out.glob("*.bin")):
+    for old in {*out.glob("*.glb"), *out.glob("*_*.json"), *out.glob("*.bin"), *out.glob("far.*")}:
         old.unlink()
 
     click.echo("build: loading cached data")
@@ -262,8 +265,9 @@ def build_area(area: Area, out_root: Path) -> None:
 
     click.echo(f"build: buildings ({len(ob)} footprints)")
     buildings, bstats = prepare_buildings(area, ob, osm_b, features, edges)
-    add_building_meshes(buildings, dem, heights, bank)
+    base_y = add_building_meshes(buildings, dem, heights, bank)
     placed = [b for b in buildings if bank.chunk_of(b["poly"].centroid.x, b["poly"].centroid.y) in valid]
+    colliders = building_colliders(placed, base_y, skirt=SKIRT_M)
 
     click.echo("build: features and spawn points")
     idx = RoadIndex(edges)
@@ -273,6 +277,12 @@ def build_area(area: Area, out_root: Path) -> None:
     garages = _place(garages_raw, dem, heights, idx, edges_by_id, extent)
     pois = _place(pois_raw, dem, heights, idx, edges_by_id, extent)
     spawns = _spawns(edges, stops, garages, pois, dem, heights)
+
+    click.echo("build: street props")
+    props = place_props(edges, nodes, [b["poly"] for b in buildings], lambda x, z: _sample(heights, dem, x, z), stops, garages, pois)
+
+    click.echo("build: far-field LOD")
+    far = build_far_field(out, area.extent, dem, heights, green_mask, edges, placed)
 
     # Which edges touch which chunks.
     size = area.chunk_size
@@ -288,9 +298,13 @@ def build_area(area: Area, out_root: Path) -> None:
         return (math.floor(p["x"] / size), math.floor(p["z"] / size))
 
     by_chunk = defaultdict(lambda: defaultdict(list))
-    for kind, items in (("stops", stops), ("garages", garages), ("pois", pois), ("spawns", spawns)):
+    for kind, items in (("stops", stops), ("garages", garages), ("pois", pois), ("spawns", spawns), ("props", props)):
         for p in items:
             by_chunk[chunk_key(p)][kind].append(p)
+    for c in colliders:
+        key = chunk_key({"x": c.pop("cx"), "z": c.pop("cz")})
+        c.pop("id")
+        by_chunk[key]["buildings"].append(c)
 
     click.echo(f"build: writing {len(valid)} chunks to {out}")
     chunk_meta = []
@@ -327,6 +341,8 @@ def build_area(area: Area, out_root: Path) -> None:
                 "garages": by_chunk[(cx, cz)]["garages"],
                 "pois": by_chunk[(cx, cz)]["pois"],
                 "spawns": by_chunk[(cx, cz)]["spawns"],
+                "buildings": by_chunk[(cx, cz)]["buildings"],
+                "props": by_chunk[(cx, cz)]["props"],
             }
             js = json.dumps(cj, separators=(",", ":"), ensure_ascii=False).encode()
             (out / f"{name}.json").write_bytes(js)
@@ -369,6 +385,7 @@ def build_area(area: Area, out_root: Path) -> None:
             "roadLift": ROAD_LIFT,
         },
         "chunks": chunk_meta,
+        "farField": far,
         "roadGraph": {
             "nodes": [node_to_json(nd) for nd in nodes.values()],
             "edges": [edge_json[e.id] for e in edges],
@@ -381,10 +398,10 @@ def build_area(area: Area, out_root: Path) -> None:
     mpath = out / "manifest.json"
     mpath.write_text(json.dumps(manifest, separators=(",", ":"), ensure_ascii=False))
 
-    _summary(area, out, edges, extent, placed, bstats, chunk_meta, mpath, stops, garages, pois, trimmed, over_budget, time.time() - t0)
+    _summary(area, out, edges, extent, placed, bstats, chunk_meta, mpath, stops, garages, pois, props, trimmed, over_budget, time.time() - t0)
 
 
-def _summary(area, out, edges, extent, placed, bstats, chunk_meta, mpath, stops, garages, pois, trimmed, over_budget, secs):
+def _summary(area, out, edges, extent, placed, bstats, chunk_meta, mpath, stops, garages, pois, props, trimmed, over_budget, secs):
     min_x, min_z, max_x, max_z = extent
     road_m = 0.0
     for e in edges:
@@ -410,6 +427,10 @@ def _summary(area, out, edges, extent, placed, bstats, chunk_meta, mpath, stops,
     click.echo(f"  materials       {dict(sorted(bstats.by_material.items()))}")
     click.echo(f"  roofs           {dict(sorted(bstats.by_roof.items()))}")
     click.echo(f"stops / garages   {len(stops)} / {len(garages)};  POIs {len(pois)}")
+    kinds = defaultdict(int)
+    for p in props:
+        kinds[p["type"]] += 1
+    click.echo(f"props             {dict(sorted(kinds.items()))}")
     click.echo(f"glb               total {mb(sum(glb))}, mean {sum(glb) / len(glb) / 1e3:.0f} KB, largest {largest['files']['glb']} {mb(largest['bytes']['glb'])}")
     click.echo(f"json / heightfield total {mb(js)} / {mb(hf)};  manifest {mb(mpath.stat().st_size)}")
     if trimmed:

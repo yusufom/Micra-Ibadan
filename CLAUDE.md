@@ -51,6 +51,14 @@ Micra Ibadan is an open world browser driving game set in real Ibadan, Oyo State
 
 OSM does not tag a `junction=roundabout` at Dugbe. The nearest one it tags is the Magazine Rd / Dick Rd roundabout (way 606902218), about 600 m NW. The origin was therefore taken as the node where Iyaganku, Fajuyi and Onireke roads meet. Don't change it once chunk data exists, because every chunk would need regenerating.
 
+## World rendering
+
+- `src/game/world/ChunkManager.ts` streams chunks around a focus (the camera for now, the Micra later): the 3×3 around it at full detail with colliders and props, the next ring preloaded in the direction of travel (all of it on the high tier) at reduced detail, and anything beyond 2 rings unloaded and disposed. Scene and physics work is time-sliced in `update()`.
+- Every chunk surface is merged into one mesh per chunk and drawn with the shared atlas material (`src/game/world/materials/`). A new pipeline material name must be mapped to a tile in `MATERIAL_TILE` (`chunks/chunkMesh.ts`).
+- Beyond the streamed chunks, `terrain/FarField.ts` draws the pipeline's `far.bin` + `far.jpg` as one mesh.
+- Quality tiers are in `src/game/world/quality.ts` (low = phone at 30 fps, high = laptop at 60 fps).
+- Debug (dev, or `?debug` in any build): **F** free-fly camera, **G** road grade overlay, **H** harmattan haze. URL params: `?quality=low|high`, `?hour=17.5`, `?haze=0`, `?cam=x,y,z[,yaw,pitch]` (start in free fly).
+
 ## Commands
 
 ```sh

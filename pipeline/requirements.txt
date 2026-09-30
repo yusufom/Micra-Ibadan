@@ -4,6 +4,7 @@ geopandas==1.2.0
 mapbox-earcut==2.1.0
 numpy==2.5.3
 osmnx==2.1.1
+Pillow==12.3.0
 pyproj==3.8.0
 PyYAML==6.0.3
 rasterio==1.5.1

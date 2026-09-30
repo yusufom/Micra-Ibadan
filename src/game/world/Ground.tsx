@@ -2,7 +2,7 @@
 
 import { CuboidCollider, RigidBody } from "@react-three/rapier";
 
-/** Placeholder ground: 500 m square with a gentle slope until terrain chunks exist. */
+/** Fallback ground when no map chunks have been built (public/chunks is gitignored): a 500 m square with a gentle slope. */
 export const GROUND_SIZE = 500;
 /** Rise towards the north (-Z), in radians. ~2° is a mild Ibadan street. */
 export const GROUND_SLOPE = (2 * Math.PI) / 180;
